@@ -300,6 +300,7 @@ func (p *criStatsProvider) ListPodCPUAndMemoryStats() ([]statsapi.PodStats, erro
 	for _, s := range sandboxIDToPodStats {
 		result = append(result, *s)
 	}
+
 	return result, nil
 }
 
@@ -450,9 +451,18 @@ func (p *criStatsProvider) addPodCPUMemoryStats(
 	podCgroupInfo := getCadvisorPodInfoFromPodUID(podUID, allInfos)
 	if podCgroupInfo != nil {
 		cpu, memory := cadvisorInfoToCPUandMemoryStats(podCgroupInfo)
-		ps.CPU = cpu
-		ps.Memory = memory
-		return
+		if getUint64Value(cpu.UsageCoreNanoSeconds) != uint64(0) ||
+			getUint64Value(cpu.UsageNanoCores) != uint64(0) ||
+			getUint64Value(memory.AvailableBytes) != uint64(0) ||
+			getUint64Value(memory.MajorPageFaults) != uint64(0) ||
+			getUint64Value(memory.PageFaults) != uint64(0) ||
+			getUint64Value(memory.UsageBytes) != uint64(0) ||
+			getUint64Value(memory.WorkingSetBytes) != uint64(0) {
+
+			ps.CPU = cpu
+			ps.Memory = memory
+			return
+		}
 	}
 
 	// Sum Pod cpu and memory stats from containers stats.

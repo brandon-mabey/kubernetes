@@ -437,7 +437,7 @@ func getTerminatedContainerInfo(seed int, podName string, podNamespace string, c
 	return cinfo
 }
 
-func getTestContainerInfo(seed int, podName string, podNamespace string, containerName string) cadvisorapiv2.ContainerInfo {
+func getTestContainerSpec(podName string, podNamespace string, containerName string, containerCreationTime time.Time) cadvisorapiv2.ContainerSpec {
 	labels := map[string]string{}
 	if podName != "" {
 		labels = map[string]string{
@@ -447,10 +447,11 @@ func getTestContainerInfo(seed int, podName string, podNamespace string, contain
 			"io.kubernetes.container.name": containerName,
 		}
 	}
+
 	// by default, kernel will set memory.limit_in_bytes to 1 << 63 if not bounded
 	unlimitedMemory := uint64(1 << 63)
 	spec := cadvisorapiv2.ContainerSpec{
-		CreationTime: testTime(creationTime, seed),
+		CreationTime: containerCreationTime,
 		HasCpu:       true,
 		HasMemory:    true,
 		HasNetwork:   true,
@@ -460,6 +461,54 @@ func getTestContainerInfo(seed int, podName string, podNamespace string, contain
 		},
 		CustomMetrics: generateCustomMetricSpec(),
 	}
+	return spec
+}
+
+func getTestContainerInfoZero(podName string, podNamespace string, containerName string) cadvisorapiv2.ContainerInfo {
+	spec := getTestContainerSpec(podName, podNamespace, containerName, creationTime)
+
+	totalUsageBytes := uint64(0)
+	baseUsageBytes := uint64(0)
+	inodeUsage := uint64(0)
+
+	stats := cadvisorapiv2.ContainerStats{
+		Timestamp: timestamp,
+		Cpu:       &cadvisorapiv1.CpuStats{},
+		CpuInst:   &cadvisorapiv2.CpuInstStats{},
+		Memory: &cadvisorapiv1.MemoryStats{
+			Usage:      0,
+			WorkingSet: 0,
+			RSS:        0,
+			ContainerData: cadvisorapiv1.MemoryStatsMemoryData{
+				Pgfault:    0,
+				Pgmajfault: 0,
+			},
+		},
+		Network: &cadvisorapiv2.NetworkStats{
+			Interfaces: []cadvisorapiv1.InterfaceStats{{
+				Name:     "eth0",
+				RxBytes:  0,
+				RxErrors: 0,
+				TxBytes:  0,
+				TxErrors: 0,
+			}},
+		},
+		Filesystem: &cadvisorapiv2.FilesystemStats{
+			TotalUsageBytes: &totalUsageBytes,
+			BaseUsageBytes:  &baseUsageBytes,
+			InodeUsage:      &inodeUsage,
+		},
+	}
+	stats.Cpu.Usage.Total = 0
+	stats.CpuInst.Usage.Total = 0
+	return cadvisorapiv2.ContainerInfo{
+		Spec:  spec,
+		Stats: []*cadvisorapiv2.ContainerStats{&stats},
+	}
+}
+
+func getTestContainerInfo(seed int, podName string, podNamespace string, containerName string) cadvisorapiv2.ContainerInfo {
+	spec := getTestContainerSpec(podName, podNamespace, containerName, testTime(creationTime, seed))
 
 	totalUsageBytes := uint64(seed + offsetFsTotalUsageBytes)
 	baseUsageBytes := uint64(seed + offsetFsBaseUsageBytes)
